@@ -22,8 +22,7 @@ from config.settings import (
 from config.post_examples import LINKEDIN_POST_EXAMPLES
 from config.linkedin_post_layout import render_linkedin_post
 from utils.database import Database
-# Near the top of the file, add:
-from streamlit_icons import icon
+
 
 # Load environment variables
 load_dotenv()
