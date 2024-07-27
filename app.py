@@ -51,7 +51,16 @@ if 'curated_news' not in st.session_state:
     st.session_state.curated_news = None
 if 'rewrite_clicked' not in st.session_state:
     st.session_state.rewrite_clicked = False
+if 'tone' not in st.session_state:
+    st.session_state.tone = None
+if 'author' not in st.session_state:
+    st.session_state.author = None
+if 'audience' not in st.session_state:
+    st.session_state.audience = None    
 
+
+def set_tone(tone):
+    st.session_state.tone = tone
 
 # Set up the sidebar
 setup_sidebar()
@@ -100,57 +109,96 @@ def display_image():
         st.error("No image generated yet.")
 
 def generate_post():
-    if topic:
-        st.info("Generating post... This may take a moment.")
+    if st.session_state.topic:
+        if 'research_results' not in st.session_state:
+            st.info("Researching and curating content... This may take a moment.")
 
-        # Research step
-        start_time = time.time()
-        with st.spinner("Researching topic..."):
-            research_results = research_agent({"messages": [{"content": topic}]}, model=st.session_state.model)
-        st.session_state.research_time = time.time() - start_time
-        st.text(f"Research completed in {st.session_state.research_time:.2f} seconds")
+            # Research step
+            start_time = time.time()
+            with st.spinner("Researching topic..."):
+                research_results = research_agent({"messages": [{"content": st.session_state.topic}]}, model=st.session_state.model)
+            st.session_state.research_time = time.time() - start_time
+            st.text(f"Research completed in {st.session_state.research_time:.2f} seconds")
 
-        # News Curation step
-        start_time = time.time()
-        with st.spinner("Curating and analyzing news..."):
-            curated_results = news_curator_agent(research_results, model=st.session_state.model, use_groq=st.session_state.use_groq)
-        st.session_state.curation_time = time.time() - start_time
-        st.text(f"News curated and analyzed in {st.session_state.curation_time:.2f} seconds")    
-        st.session_state.curated_news = curated_results['content']
+            # News Curation step
+            start_time = time.time()
+            with st.spinner("Curating and analyzing news..."):
+                curated_results = news_curator_agent(research_results, model=st.session_state.model, use_groq=st.session_state.use_groq)
+            st.session_state.curation_time = time.time() - start_time
+            st.text(f"News curated and analyzed in {st.session_state.curation_time:.2f} seconds")    
+            st.session_state.curated_news = curated_results['content']
+            st.session_state.research_results = research_results
+            st.session_state.show_personalization = True
+            st.experimental_rerun()
 
-        # Writing step
-        start_time = time.time()
-        with st.spinner("Writing post..."):
-            post_result = post_writer_agent({"messages": [{"content": curated_results['content']}]}, model=st.session_state.model, use_groq=st.session_state.use_groq)
-        st.session_state.writing_time = time.time() - start_time
-        st.text(f"Post written in {st.session_state.writing_time:.2f} seconds")
+        if st.session_state.get('show_personalization', False):
+            # Personalization inputs
+            st.subheader("Personalize Your Post")
+            
+            tone_options = ["", "Humor", "Inspirational", "Celebration", "Achievement"]
+            selected_tone = st.selectbox("Select a tone:", tone_options, key="tone_select")
+            custom_tone = st.text_input("Or enter a custom tone:", key="custom_tone")
+            author = st.text_input("Enter your role (e.g., Student, Software Dev, English Teacher):", key="author_input")
+            audience = st.text_input("Enter your target audience:", key="audience_input")
 
-        # Editing step
-        start_time = time.time()
-        with st.spinner("Editing and optimizing post for LinkedIn..."):
-            edited_result = editor_agent({"messages": [{"content": post_result['content']}]}, model=st.session_state.model, use_groq=st.session_state.use_groq)
-        st.session_state.editing_time = time.time() - start_time
-        st.text(f"Post edited and optimized in {st.session_state.editing_time:.2f} seconds")
+            if st.button("Generate Personalized Post", key="generate_personalized_post"):
+                # Writing step
+                start_time = time.time()
+                with st.spinner("Writing post..."):
+                    post_result = post_writer_agent(
+                        {
+                            "messages": [{"content": st.session_state.curated_news}],
+                            "tone": custom_tone if custom_tone else selected_tone,
+                            "author": author,
+                            "audience": audience
+                        },
+                        model=st.session_state.model,
+                        use_groq=st.session_state.use_groq
+                    )
+                st.session_state.writing_time = time.time() - start_time
+                st.text(f"Post written in {st.session_state.writing_time:.2f} seconds")
 
-        # Store the original post content
-        st.session_state.original_post = edited_result['content']
-        st.session_state.generated_post = edited_result['content']
-        st.session_state.rewritten_post = None  # Reset rewritten post
-    
-        st.success("Post generated successfully!")
-        st.session_state.post_generated = True
+                # Editing step
+                start_time = time.time()
+                with st.spinner("Editing and optimizing post for LinkedIn..."):
+                    edited_result = editor_agent({"messages": [{"content": post_result['content']}]}, model=st.session_state.model, use_groq=st.session_state.use_groq)
+                st.session_state.editing_time = time.time() - start_time
+                st.text(f"Post edited and optimized in {st.session_state.editing_time:.2f} seconds")
+
+                # Store the original post content
+                st.session_state.original_post = edited_result['content']
+                st.session_state.generated_post = edited_result['content']
+                st.session_state.rewritten_post = None  # Reset rewritten post
+            
+                st.success("Post generated successfully!")
+                st.session_state.post_generated = True
+                st.session_state.show_personalization = False  # Hide personalization after generating
+                st.experimental_rerun()
+
+    else:
+        st.warning("Please enter a topic before generating a post.")
 
 def rewrite_post(feedback=""):
     if st.session_state.curated_news:
         st.info("Rewriting post... This may take a moment.")
 
         # Update the query with feedback
-        updated_query = f"{topic} FEEDBACK: {feedback}" if feedback else topic
+        updated_query = f"{st.session_state.topic} FEEDBACK: {feedback}" if feedback else st.session_state.topic
 
         # Writing step
         start_time = time.time()
         with st.spinner("Writing post..."):
-            post_result = post_writer_agent({"messages": [{"content": st.session_state.curated_news}, {"content": updated_query}]}, model=st.session_state.model, use_groq=st.session_state.use_groq)
+            post_result = post_writer_agent(
+                {
+                    "messages": [{"content": st.session_state.curated_news}, {"content": updated_query}],
+                    "tone": st.session_state.tone,
+                    "author": st.session_state.author,
+                    "audience": st.session_state.audience,
+                    "feedback": feedback
+                },
+                model=st.session_state.model,
+                use_groq=st.session_state.use_groq
+            )
         st.session_state.writing_time = time.time() - start_time
         st.text(f"Post rewritten in {st.session_state.writing_time:.2f} seconds")
 
@@ -166,9 +214,18 @@ def rewrite_post(feedback=""):
         
         st.success("Post rewritten successfully!")
         st.session_state.post_generated = True
+        st.experimental_rerun()
+    else:
+        st.error("No curated news available. Please generate a post first.")
+
 
 def reset_app():
-    for key in ['generated_post', 'rewritten_post', 'generated_image', 'post_approved', 'image_generated', 'curated_news', 'rewrite_clicked']:
+    keys_to_clear = [
+        'topic', 'generated_post', 'rewritten_post', 'generated_image', 
+        'post_approved', 'image_generated', 'curated_news', 'rewrite_clicked', 
+        'tone', 'custom_tone', 'author', 'audience', 'research_results'
+    ]
+    for key in keys_to_clear:
         if key in st.session_state:
             del st.session_state[key]
     st.session_state.post_generated = False
@@ -178,15 +235,21 @@ def approve_post():
     st.session_state.post_approved = True
 
 # Input area
-if not st.session_state.get('post_generated', False):
-    topic = st.text_input("Enter the topic for your LinkedIn post:", placeholder="e.g., Latest trends in AI")
-    if st.button("Generate Post", key="generate_post_button"):
-        generate_post()
-else:
-    feedback = st.text_input("Feedback for post rewrite:", placeholder="Enter feedback for post improvement")
+if 'topic' not in st.session_state:
+    st.session_state.topic = ""
 
-# Display generated post and image
+st.session_state.topic = st.text_input("Enter the topic for your LinkedIn post:", 
+                                       value=st.session_state.topic, 
+                                       placeholder="e.g., Latest trends in AI")
+
+if st.button("Start Post Generation", key="start_generation"):
+    generate_post()
+
+if 'research_results' in st.session_state:
+    generate_post()
+
 if st.session_state.get('post_generated', False):
+    # Display generated post and image
     st.subheader("Generated LinkedIn Post:")
     
     col1, col2 = st.columns(2)
