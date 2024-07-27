@@ -59,31 +59,7 @@ setup_sidebar()
 # Main content
 st.title("LinkedIn Post Generator")
 
-
-# Input area
-if 'post_generated' not in st.session_state or not st.session_state.post_generated:
-    topic = st.text_input("Enter the topic for your LinkedIn post:", placeholder="e.g., Latest trends in AI")
-else:
-    feedback = st.text_input("Feedback for post rewrite:", placeholder="Enter feedback for post improvement")
-
-# Button row
-col1, col2, col3 = st.columns(3)
-with col1:
-    generate_button = st.button("Generate Post", disabled='post_generated' in st.session_state and st.session_state.post_generated)
-with col2:
-    rewrite_button = st.button("Re-write Post", disabled='post_generated' not in st.session_state or not st.session_state.post_generated)
-with col3:
-    restart_button = st.button("Restart", disabled='post_generated' not in st.session_state or not st.session_state.post_generated)
-
-if generate_button:
-    generate_post()
-
-if rewrite_button:
-    rewrite_post(feedback)
-
-if restart_button:
-    reset_app()    
-
+# Define functions
 def copy_to_clipboard(text):
     pyperclip.copy(text)
     st.success("Post copied to clipboard!")
@@ -117,7 +93,7 @@ def display_image():
         with col1:
             st.image(st.session_state.generated_image)
         with col2:
-            if st.button("🔄"):
+            if st.button("🔄", key="regenerate_image"):
                 generate_image()
         save_image(st.session_state.generated_image)
     else:
@@ -131,30 +107,30 @@ def generate_post():
         start_time = time.time()
         with st.spinner("Researching topic..."):
             research_results = research_agent({"messages": [{"content": topic}]}, model=st.session_state.model)
-        research_time = time.time() - start_time
-        st.text(f"Research completed in {research_time:.2f} seconds")
+        st.session_state.research_time = time.time() - start_time
+        st.text(f"Research completed in {st.session_state.research_time:.2f} seconds")
 
         # News Curation step
         start_time = time.time()
         with st.spinner("Curating and analyzing news..."):
             curated_results = news_curator_agent(research_results, model=st.session_state.model, use_groq=st.session_state.use_groq)
-        curation_time = time.time() - start_time
-        st.text(f"News curated and analyzed in {curation_time:.2f} seconds")    
+        st.session_state.curation_time = time.time() - start_time
+        st.text(f"News curated and analyzed in {st.session_state.curation_time:.2f} seconds")    
         st.session_state.curated_news = curated_results['content']
 
         # Writing step
         start_time = time.time()
         with st.spinner("Writing post..."):
             post_result = post_writer_agent({"messages": [{"content": curated_results['content']}]}, model=st.session_state.model, use_groq=st.session_state.use_groq)
-        writing_time = time.time() - start_time
-        st.text(f"Post written in {writing_time:.2f} seconds")
+        st.session_state.writing_time = time.time() - start_time
+        st.text(f"Post written in {st.session_state.writing_time:.2f} seconds")
 
         # Editing step
         start_time = time.time()
         with st.spinner("Editing and optimizing post for LinkedIn..."):
             edited_result = editor_agent({"messages": [{"content": post_result['content']}]}, model=st.session_state.model, use_groq=st.session_state.use_groq)
-        editing_time = time.time() - start_time
-        st.text(f"Post edited and optimized in {editing_time:.2f} seconds")
+        st.session_state.editing_time = time.time() - start_time
+        st.text(f"Post edited and optimized in {st.session_state.editing_time:.2f} seconds")
 
         # Store the original post content
         st.session_state.original_post = edited_result['content']
@@ -175,20 +151,18 @@ def rewrite_post(feedback=""):
         start_time = time.time()
         with st.spinner("Writing post..."):
             post_result = post_writer_agent({"messages": [{"content": st.session_state.curated_news}, {"content": updated_query}]}, model=st.session_state.model, use_groq=st.session_state.use_groq)
-        writing_time = time.time() - start_time
-        st.text(f"Post rewritten in {writing_time:.2f} seconds")
+        st.session_state.writing_time = time.time() - start_time
+        st.text(f"Post rewritten in {st.session_state.writing_time:.2f} seconds")
 
         # Editing step
         start_time = time.time()
         with st.spinner("Editing and optimizing post for LinkedIn..."):
             edited_result = editor_agent({"messages": [{"content": post_result['content']}]}, model=st.session_state.model, use_groq=st.session_state.use_groq)
-        editing_time = time.time() - start_time
-        st.text(f"Post edited and optimized in {editing_time:.2f} seconds")
+        st.session_state.editing_time = time.time() - start_time
+        st.text(f"Post edited and optimized in {st.session_state.editing_time:.2f} seconds")
        
         # Store the rewritten post content
         st.session_state.rewritten_post = edited_result['content']
-        st.session_state.writing_time = writing_time
-        st.session_state.editing_time = editing_time
         
         st.success("Post rewritten successfully!")
         st.session_state.post_generated = True
@@ -197,17 +171,22 @@ def reset_app():
     for key in ['generated_post', 'rewritten_post', 'generated_image', 'post_approved', 'image_generated', 'curated_news', 'rewrite_clicked']:
         if key in st.session_state:
             del st.session_state[key]
+    st.session_state.post_generated = False
     st.experimental_rerun()
 
-if st.button("Generate Post"):
-    generate_post()
-    
-# Add a function to handle post approval:
 def approve_post():
     st.session_state.post_approved = True
 
+# Input area
+if not st.session_state.get('post_generated', False):
+    topic = st.text_input("Enter the topic for your LinkedIn post:", placeholder="e.g., Latest trends in AI")
+    if st.button("Generate Post", key="generate_post_button"):
+        generate_post()
+else:
+    feedback = st.text_input("Feedback for post rewrite:", placeholder="Enter feedback for post improvement")
+
 # Display generated post and image
-if 'post_generated' in st.session_state and st.session_state.post_generated:
+if st.session_state.get('post_generated', False):
     st.subheader("Generated LinkedIn Post:")
     
     col1, col2 = st.columns(2)
@@ -222,36 +201,37 @@ if 'post_generated' in st.session_state and st.session_state.post_generated:
             st.markdown("### Rewritten Post")
             st.write("No rewrite yet. Use the 'Re-write Post' button to generate a new version.")
 
-     # Display process timings
+    # Display process timings
     st.subheader("Process Timings:")
     st.text(f"Research completed in {st.session_state.research_time:.2f} seconds")
     st.text(f"News curated and analyzed in {st.session_state.curation_time:.2f} seconds")
     st.text(f"Post written in {st.session_state.writing_time:.2f} seconds")
     st.text(f"Post edited and optimized in {st.session_state.editing_time:.2f} seconds")        
 
-    # Human review process
+    # Human Review section
     st.subheader("Human Review")
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("Approve Post"):
-            st.session_state.post_approved = True
+        if st.button("Approve Post", key="approve_post_button"):
+            approve_post()
             st.success("Post approved!")
     with col2:
-        if st.button("Re-write Post"):
+        if st.button("Re-write Post", key="rewrite_post_button"):
             st.session_state.rewrite_clicked = True
     with col3:
-        if st.button("Restart"):
+        if st.button("Restart", key="restart_button"):
             reset_app()
 
     if st.session_state.rewrite_clicked:
         feedback = st.text_area("Provide feedback or suggestions for improvement:")
-        if st.button("Submit Feedback"):
+        if st.button("Submit Feedback", key="submit_feedback_button"):
             rewrite_post(feedback)
             st.session_state.rewrite_clicked = False
             st.experimental_rerun()
 
+    # Image generation button
     if st.session_state.post_approved:
-        if st.button("Generate Image"):
+        if st.button("Generate Image", key="generate_image_button"):
             generate_image()
 
     # Display generated image and regenerate option
