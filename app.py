@@ -213,11 +213,11 @@ if 'post_generated' in st.session_state and st.session_state.post_generated:
     
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("### Original Post " + icon("check-circle", "green") if st.session_state.post_approved else icon("check-circle", "gray"))
+        st.markdown("### Original Post " + ("✅" if st.session_state.post_approved else "⚪"))
         render_linkedin_post(st.session_state.generated_post, None)
     with col2:
         if st.session_state.rewritten_post:
-            st.markdown("### Rewritten Post " + icon("check-circle", "green") if st.session_state.post_approved else icon("check-circle", "gray"))
+            st.markdown("### Rewritten Post " + ("✅" if st.session_state.post_approved else "⚪"))
             render_linkedin_post(st.session_state.rewritten_post, None)
         else:
             st.markdown("### Rewritten Post")

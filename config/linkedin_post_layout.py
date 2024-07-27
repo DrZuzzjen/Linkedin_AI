@@ -1,9 +1,8 @@
 import streamlit as st
-from streamlit_icons import icon
 import os
 
 def render_linkedin_post(post_content, image_path=None, author_name="AI Post Generator"):
-    approval_icon = icon("check-circle", "green") if st.session_state.post_approved else icon("check-circle", "gray")
+    approval_icon = "✅" if st.session_state.post_approved else "⚪"
     st.markdown(f"""
     <div style="border: 1px solid var(--streamlit-color-secondary-50); border-radius: 8px; padding: 16px; max-width: 100%; margin: auto; background-color: var(--streamlit-color-white);">
         <div style="display: flex; align-items: center; margin-bottom: 12px;">
