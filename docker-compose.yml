@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  linkedin_automation:
+    build: .
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    env_file:
+      - .env
